@@ -19,7 +19,7 @@ resource "google_vertex_ai_endpoint" "gnn_endpoint" {
 # BigQuery Table for Graph Nodes
 resource "google_bigquery_table" "graph_nodes" {
   project    = var.project_id
-  dataset_id = var.dataset_id
+  dataset_id = google_bigquery_dataset.telemetry_dataset.dataset_id
   table_id   = "graph_nodes"
   schema     = <<EOF
 [
@@ -37,7 +37,7 @@ EOF
 # BigQuery Table for Graph Edges (Dependency Links)
 resource "google_bigquery_table" "graph_edges" {
   project    = var.project_id
-  dataset_id = var.dataset_id
+  dataset_id = google_bigquery_dataset.telemetry_dataset.dataset_id
   table_id   = "graph_edges"
   schema     = <<EOF
 [

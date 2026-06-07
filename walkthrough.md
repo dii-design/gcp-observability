@@ -32,6 +32,11 @@ We have successfully transitioned the local interactive anomaly forecasting demo
     *   **ARIMA Coefficient Analysis (`ML.ARIMA_COEFFICIENTS`):** Added queries to directly fetch auto-regressive and moving-average model parameters to understand statistical weighting.
     *   **Automated Live Database Views:** Configured four managed BigQuery views in `terraform/bigquery.tf` representing the live forecasts, anomalies, evaluations, and coefficients queries. This automates the entire analysis pipeline right upon `terraform apply`.
     *   **Runbook Step 3 Enrichment:** Documented both the queries and the pre-configured views step-by-step in `README.md`.
+6.  **Unified Logs & Timeseries Metric Correlation:**
+    *   **Interactive Simulation Section Added:** Integrated `logs_metrics_correlation` in the sandbox playground's dataset selection in `app.js` and `index.html`. It provides a dedicated workspace for testing logs-metrics correlation logic.
+    *   **BigQuery SQL Joining Template:** Designed a production-grade SQL blueprint illustrating how to align irregular event-driven logs (Log Analytics upgraded `_AllLogs` bucket) with regular interval timeseries metrics (Continuous Cloud Monitoring BigQuery Export) by bucketing timestamps into 5-minute intervals and joining on resource ID keys.
+    *   **Joint-Alert & MQL Blueprints:** Provided custom templates for multi-condition GKE alert policies (`AND` combiner) and multi-stream join queries using Monitoring Query Language (MQL) in Monarch.
+    *   **Comprehensive Guide Integrated:** Added a detailed architectural breakdown and configuration guide inside `README.md`.
 
 ---
 

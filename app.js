@@ -50,7 +50,8 @@ document.addEventListener('DOMContentLoaded', () => {
     servicenow_location: { title: "ServiceNow Incident Volume by Site", cat: "ServiceNow Logs", unit: "incidents", min: 0, max: 150, isCapacity: false },
     disk_trend: { title: "Daily Disk Trend Aggregation", cat: "Capacity Trends", unit: "%", min: 0, max: 100, isCapacity: true },
     memory_trend: { title: "Memory Utilization Forecasting", cat: "Capacity Trends", unit: "%", min: 0, max: 100, isCapacity: true },
-    gnn_topology: { title: "GNN Infrastructure Topology", cat: "Graph Neural Networks", unit: "%", min: 0, max: 100, isCapacity: false }
+    gnn_topology: { title: "GNN Infrastructure Topology", cat: "Graph Neural Networks", unit: "%", min: 0, max: 100, isCapacity: false },
+    logs_metrics_correlation: { title: "Logs & Timeseries Correlation", cat: "Unified Telemetry Correlation", unit: "co-occurrences", min: 0, max: 150, isCapacity: false }
   };
 
   // --- LOG WRITER ---
@@ -145,6 +146,10 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'gnn_topology':
           // Graph model health / stability
           val = 98.5 + (Math.random() - 0.5) * 1.2;
+          break;
+        case 'logs_metrics_correlation':
+          // Unified telemetry correlation: higher load leads to higher warning incidents
+          val = 45 + Math.sin(i * 0.8) * 20 + noise * 2.5;
           break;
       }
       
@@ -1055,6 +1060,127 @@ resource "google_bigquery_table" "graph_nodes" {
 ]
 EOF
 }`
+    },
+    logs_metrics_correlation: {
+      bqml: `-- BQML CORRELATION OF LOGS AND METRIC TIMESERIES IN BIGQUERY
+-- 
+-- 1. Enable Log Analytics on your Cloud Logging bucket to stream logs to BigQuery.
+-- 2. Enable continuous Cloud Monitoring BigQuery Export to stream timeseries metrics to BigQuery.
+-- 3. Run this query to bucket both datasets into 5-minute intervals and join on resource ID.
+
+WITH metrics_5m AS (
+  -- Aggregate high-frequency timeseries metrics into 5-minute buckets
+  SELECT
+    TIMESTAMP_TRUNC(timestamp, MINUTE, 5) AS timestamp_bucket,
+    resource.labels.node_name AS node_id,
+    AVG(point.value.double_value) AS avg_cpu_utilization
+  FROM \`gke-demos-363017.monitoring_export.time_series\`
+  WHERE metric.type = 'kubernetes.io/container/cpu/limit_utilization'
+    AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
+  GROUP BY 1, 2
+),
+
+logs_5m AS (
+  -- Aggregate arbitrary log occurrences (Warnings/Errors) into 5-minute buckets
+  SELECT
+    TIMESTAMP_TRUNC(timestamp, MINUTE, 5) AS timestamp_bucket,
+    COALESCE(
+      JSON_VALUE(resource.labels.node_name),
+      JSON_VALUE(jsonPayload.node_name),
+      "unknown-node"
+    ) AS node_id,
+    COUNT(1) AS log_error_count
+  FROM \`gke-demos-363017.global._Default._AllLogs\`
+  WHERE severity IN ('ERROR', 'CRITICAL', 'WARNING')
+    AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
+  GROUP BY 1, 2
+)
+
+-- FULL JOIN to correlate metrics with log incidents
+SELECT
+  COALESCE(m.timestamp_bucket, l.timestamp_bucket) AS timestamp,
+  COALESCE(m.node_id, l.node_id) AS node_id,
+  COALESCE(m.avg_cpu_utilization, 0.0) AS cpu_utilization,
+  COALESCE(l.log_error_count, 0) AS error_count,
+  
+  -- Flag instances where high metrics correlate directly with log errors
+  CASE
+    WHEN m.avg_cpu_utilization > 0.85 AND l.log_error_count > 10 THEN 'CRITICAL CORRELATION: METRIC SPIKE COINCIDES WITH ERROR LOGS'
+    WHEN m.avg_cpu_utilization > 0.85 THEN 'METRIC SPIKE ONLY'
+    WHEN l.log_error_count > 10 THEN 'LOG ERROR SPIKE ONLY'
+    ELSE 'NOMINAL'
+  END AS correlation_state
+FROM metrics_5m m
+FULL OUTER JOIN logs_5m l
+  ON m.timestamp_bucket = l.timestamp_bucket
+  AND m.node_id = l.node_id
+ORDER BY timestamp DESC, cpu_utilization DESC;`,
+      monitoring: `{
+  "displayName": "Unified Telemetry: CPU Spike & Log Error Correlation Alert",
+  "combiner": "AND",
+  "conditions": [
+    {
+      "displayName": "GKE Node CPU > 85%",
+      "conditionThreshold": {
+        "filter": "metric.type=\\"kubernetes.io/container/cpu/limit_utilization\\" AND resource.type=\\"k8s_node\\"",
+        "duration": "300s",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0.85
+      }
+    },
+    {
+      "displayName": "Log-Based Metric Error Count > 10/5m",
+      "conditionThreshold": {
+        "filter": "metric.type=\\"logging.googleapis.com/user/node_error_count\\" AND resource.type=\\"k8s_node\\"",
+        "duration": "300s",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 10
+      }
+    }
+  ]
+}`,
+      mql_promql: `# MQL: Continuously correlate Metric Spikes & Error Logs in Cloud Monitoring Monarch
+join
+  (
+    fetch k8s_node
+    | metric 'kubernetes.io/container/cpu/limit_utilization'
+    | align mean(5m) | every 5m
+    | group_by [node_name]
+  ),
+  (
+    fetch k8s_node
+    | metric 'logging.googleapis.com/user/node_error_count'
+    | align sum(5m) | every 5m
+    | group_by [node_name]
+  )
+| value [cpu_util: val(0), err_count: val(1)]
+| filter cpu_util > 0.85 AND err_count > 10`,
+      terraform: `# Provision a dual-signal alert policy in Cloud Monitoring via Terraform
+resource "google_monitoring_alert_policy" "unified_correlation_alert" {
+  project      = "gke-demos-363017"
+  display_name = "Unified Telemetry: High CPU & Error Log Spike Correlation"
+  combiner     = "AND"
+
+  conditions {
+    display_name = "Node CPU Utilization > 85%"
+    condition_threshold {
+      filter     = "metric.type=\\"kubernetes.io/container/cpu/limit_utilization\\" AND resource.type=\\"k8s_node\\""
+      duration   = "300s"
+      comparison = "COMPARISON_GT"
+      threshold_value = 0.85
+    }
+  }
+
+  conditions {
+    display_name = "Concurrent Node Error Logs > 10 in 5m"
+    condition_threshold {
+      filter     = "metric.type=\\"logging.googleapis.com/user/node_error_count\\" AND resource.type=\\"k8s_node\\""
+      duration   = "300s"
+      comparison = "COMPARISON_GT"
+      threshold_value = 10
+    }
+  }
+}`
     }
   };
 
@@ -1807,11 +1933,13 @@ EOF
     if (meta.cat === 'ServiceNow Logs') sourceClass = 'source-logging';
     if (meta.cat === 'Capacity Trends') sourceClass = 'source-capacity';
     if (meta.cat === 'Graph Neural Networks') sourceClass = 'source-gnn';
+    if (meta.cat === 'Unified Telemetry Correlation') sourceClass = 'source-correlation';
 
     let algo = 'ARIMA_PLUS';
     if (key === 'cpu') algo = 'Monarch Predict';
     if (meta.cat === 'Google Managed Prometheus') algo = 'PromQL forecast';
     if (meta.cat === 'Graph Neural Networks') algo = 'Vertex AI PyG';
+    if (key === 'logs_metrics_correlation') algo = 'SQL FULL JOIN';
 
     // Status pill
     let statusPill = '<span class="status-pill status-healthy"><i data-lucide="check-circle-2"></i> Healthy</span>';

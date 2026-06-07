@@ -19,7 +19,7 @@ resource "google_monitoring_dashboard" "telemetry_forecasting_dashboard" {
                     alignmentPeriod    = "60s"
                     perSeriesAligner   = "ALIGN_RATE"
                     crossSeriesReducer = "REDUCE_MEAN"
-                    groupBys           = ["resource.labels.node_name"]
+                    groupByFields      = ["resource.labels.node_name"]
                   }
                 }
               }
@@ -80,11 +80,11 @@ resource "google_monitoring_dashboard" "telemetry_forecasting_dashboard" {
                     alignmentPeriod    = "900s"
                     perSeriesAligner   = "ALIGN_SUM"
                     crossSeriesReducer = "REDUCE_SUM"
-                    groupBys           = ["metric.labels.country"]
+                    groupByFields      = ["metric.labels.country"]
                   }
                 }
               }
-              plotType = "BAR"
+              plotType = "STACKED_BAR"
             }]
             timeshiftDuration = "0s"
           }

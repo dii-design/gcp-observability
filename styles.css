@@ -635,6 +635,12 @@ body {
   border-color: rgba(236, 72, 153, 0.25);
 }
 
+.source-correlation {
+  background: rgba(16, 185, 129, 0.08);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
 .metric-algo {
   font-family: var(--font-family-mono);
   font-size: 0.78rem;
