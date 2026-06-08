@@ -1,0 +1,204 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: simulator-script
+  namespace: default
+data:
+  stress_simulator.py: |
+    import os
+    import time
+    import sys
+    import json
+    import math
+    import shutil
+    import threading
+    import multiprocessing
+
+    # Configuration from environment variables (or defaults)
+    SPIKE_INTERVAL_SEC = int(os.getenv("SPIKE_INTERVAL_SEC", "120"))  # How often to trigger a stress wave
+    SPIKE_DURATION_SEC = int(os.getenv("SPIKE_DURATION_SEC", "60"))   # How long each stress wave lasts
+    LOG_RATE_NORMAL = float(os.getenv("LOG_RATE_NORMAL", "0.5"))     # Normal incident logs/sec
+    LOG_RATE_STORM = float(os.getenv("LOG_RATE_STORM", "50.0"))       # Incident logs/sec during storm
+
+    print("=== GCP Telemetry Anomaly & Alerting Simulator Starting ===")
+    print(f"Spike Interval: {SPIKE_INTERVAL_SEC}s, Duration: {SPIKE_DURATION_SEC}s")
+    print(f"Incident Log Rate: Normal={LOG_RATE_NORMAL}/s, Storm={LOG_RATE_STORM}/s")
+
+    # Global state
+    is_spiking = False
+
+    # 1. LOG GENERATOR THREAD
+    def log_generator():
+        countries = ["US", "GB", "JP"]
+        sites = ["us-east-site", "gb-lon-site", "jp-tok-site"]
+        
+        while True:
+            current_rate = LOG_RATE_STORM if is_spiking else LOG_RATE_NORMAL
+            sleep_time = 1.0 / max(current_rate, 0.01)
+            
+            # Select country/site based on current time to create variation
+            idx = int(time.time() // 10) % len(countries)
+            country = countries[idx]
+            site = sites[idx]
+            
+            log_entry = {
+                "severity": "ERROR" if is_spiking else "INFO",
+                "event": "incident",
+                "message": "ServiceNow incident created" if is_spiking or (time.time() % 10 < 3) else "Telemetry normal poll heartbeat",
+                "country": country,
+                "site": site,
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+                "simulator_state": "STORM_SPIKE" if is_spiking else "NOMINAL"
+            }
+            
+            print(json.dumps(log_entry))
+            sys.stdout.flush()
+            time.sleep(sleep_time)
+
+    # 2. CPU STRESSOR PROCESS / THREADS
+    def cpu_worker():
+        while True:
+            if is_spiking:
+                x = 0.0001
+                for i in range(100000):
+                    x += math.sqrt(x) + math.sin(x)
+            else:
+                time.sleep(0.1)
+
+    def start_cpu_stress():
+        cores = multiprocessing.cpu_count()
+        print(f"Launching {cores} CPU stress workers...")
+        for _ in range(cores):
+            t = threading.Thread(target=cpu_worker, daemon=True)
+            t.start()
+
+    # 3. MEMORY STRESSOR THREAD
+    def memory_stressor():
+        memory_blocks = []
+        while True:
+            if is_spiking:
+                if not memory_blocks:
+                    print(">>> Memory Stress Active: Allocating buffers...")
+                    try:
+                        # Allocate ~4 blocks of 150MB each
+                        for i in range(4):
+                            memory_blocks.append("x" * (150 * 1024 * 1024))
+                            print(f"Allocated block {i+1} (150MB)")
+                            time.sleep(1)
+                    except MemoryError:
+                        print("!!! Out of Memory limit reached, holding current allocations.")
+            else:
+                if memory_blocks:
+                    print(">>> Memory Stress Inactive: Releasing buffers...")
+                    memory_blocks.clear()
+                    import gc
+                    gc.collect()
+            time.sleep(1)
+
+    # 4. DISK I/O STRESSOR THREAD (Writing to emptyDir volume)
+    def disk_stressor():
+        write_path = "/tmp/stress_test_file.bin"
+        if os.path.exists("/mnt/ephemeral"):
+            write_path = "/mnt/ephemeral/stress_test_file.bin"
+            
+        print(f"Disk stressor using write path: {write_path}")
+        block_size = 5 * 1024 * 1024  # 5MB chunk
+        dummy_data = os.urandom(block_size)
+        
+        while True:
+            if is_spiking:
+                try:
+                    with open(write_path, "wb") as f:
+                        for _ in range(30):  # Write 100MB
+                            f.write(dummy_data)
+                            f.flush()
+                            os.fsync(f.fileno())
+                    if os.path.exists(write_path):
+                        os.remove(write_path)
+                except Exception as e:
+                    print(f"Disk write stress warning: {e}")
+            else:
+                if os.path.exists(write_path):
+                    try:
+                        os.remove(write_path)
+                    except:
+                        pass
+                time.sleep(1)
+
+    # MAIN CONTROL LOOP
+    if __name__ == "__main__":
+        start_cpu_stress()
+        
+        t_log = threading.Thread(target=log_generator, daemon=True)
+        t_log.start()
+        
+        t_mem = threading.Thread(target=memory_stressor, daemon=True)
+        t_mem.start()
+        
+        t_disk = threading.Thread(target=disk_stressor, daemon=True)
+        t_disk.start()
+        
+        print("All simulator workers launched.")
+        
+        try:
+            while True:
+                is_spiking = False
+                print(f"STATE: NOMINAL (Next spike in {SPIKE_INTERVAL_SEC}s)")
+                time.sleep(SPIKE_INTERVAL_SEC)
+                
+                is_spiking = True
+                print(f"STATE: SPIKE_STRESS_ACTIVE (Duration: {SPIKE_DURATION_SEC}s)")
+                time.sleep(SPIKE_DURATION_SEC)
+                
+        except KeyboardInterrupt:
+            print("Simulator terminating.")
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry-simulator
+  namespace: default
+  labels:
+    app: telemetry-simulator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telemetry-simulator
+  template:
+    metadata:
+      labels:
+        app: telemetry-simulator
+    spec:
+      containers:
+      - name: python-simulator
+        image: python:3.11-slim
+        command: ["python", "/app/stress_simulator.py"]
+        env:
+        - name: SPIKE_INTERVAL_SEC
+          value: "300" # Toggle stress wave every 5 minutes
+        - name: SPIKE_DURATION_SEC
+          value: "180" # Keep stressed for 3 minutes
+        - name: LOG_RATE_NORMAL
+          value: "0.2" # 1 ServiceNow log per 5 seconds normally
+        - name: LOG_RATE_STORM
+          value: "40.0" # 40 ServiceNow logs/sec during spike
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "1.5Gi"
+          limits:
+            cpu: "1500m"
+            memory: "2.0Gi"
+        volumeMounts:
+        - name: script-vol
+          mountPath: /app
+        - name: ephemeral-vol
+          mountPath: /mnt/ephemeral
+      volumes:
+      - name: script-vol
+        configMap:
+          name: simulator-script
+      - name: ephemeral-vol
+        emptyDir: {}
