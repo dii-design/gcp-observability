@@ -39,7 +39,7 @@ This guide will walk you through authenticating with GCP, initializing Terraform
 Before you begin, ensure you have the following installed on your system:
 *   [Google Cloud SDK (gcloud CLI)](https://cloud.google.com/sdk/docs/install)
 *   [Terraform CLI (v1.3.0+)](https://developer.hashicorp.com/terraform/downloads)
-*   A GCP project (such as `gke-demos-363017`) with the billing, logging, monitoring, and BigQuery APIs enabled.
+*   A GCP project (such as `YOUR_PROJECT_ID`) with the billing, logging, monitoring, and BigQuery APIs enabled.
 
 ---
 
@@ -51,7 +51,7 @@ Open your terminal and authenticate your gcloud CLI and local Terraform environm
 gcloud auth login
 
 # Set your active project context
-gcloud config set project gke-demos-363017
+gcloud config set project YOUR_PROJECT_ID
 
 # Generate Application Default Credentials (ADC) for Terraform to use
 gcloud auth application-default login
@@ -72,11 +72,11 @@ We provide a complete, modular Terraform suite that automates the deployment of 
     ```
 3.  Generate an execution plan to verify what resources will be created:
     ```bash
-    terraform plan -var="project_id=gke-demos-363017"
+    terraform plan -var="project_id=YOUR_PROJECT_ID"
     ```
 4.  Apply the configuration to provision the resources:
     ```bash
-    terraform apply -var="project_id=gke-demos-363017" -auto-approve
+    terraform apply -var="project_id=YOUR_PROJECT_ID" -auto-approve
     ```
 
 #### What Terraform provisions:
@@ -94,7 +94,7 @@ Once your Log Analytics bucket is upgraded and your BQML model is trained by Ter
 #### 1. Detect Historical Log Anomalies (Outliers)
 ```sql
 SELECT * FROM ML.DETECT_ANOMALIES(
-  MODEL `gke-demos-363017.telemetry_anomaly_forecasts.incident_volume_model`,
+  MODEL `YOUR_PROJECT_ID.telemetry_anomaly_forecasts.incident_volume_model`,
   STRUCT(0.99 AS anomaly_prob_threshold)
 )
 ORDER BY timestamp DESC;
@@ -108,7 +108,7 @@ SELECT
   prediction_interval_lower_bound,
   prediction_interval_upper_bound
 FROM ML.FORECAST(
-  MODEL `gke-demos-363017.telemetry_anomaly_forecasts.incident_volume_model`,
+  MODEL `YOUR_PROJECT_ID.telemetry_anomaly_forecasts.incident_volume_model`,
   STRUCT(14 AS horizon, 0.95 AS confidence_level)
 )
 ORDER BY forecast_time ASC;
@@ -119,7 +119,7 @@ Evaluate candidate models and view statistical diagnostic information to determi
 ```sql
 SELECT * 
 FROM ML.ARIMA_EVALUATE(
-  MODEL `gke-demos-363017.telemetry_anomaly_forecasts.incident_volume_model`
+  MODEL `YOUR_PROJECT_ID.telemetry_anomaly_forecasts.incident_volume_model`
 );
 ```
 
@@ -128,7 +128,7 @@ Deconstruct and explain the individual trend components, seasonal patterns (week
 ```sql
 SELECT * 
 FROM ML.EXPLAIN_FORECAST(
-  MODEL `gke-demos-363017.telemetry_anomaly_forecasts.incident_volume_model`,
+  MODEL `YOUR_PROJECT_ID.telemetry_anomaly_forecasts.incident_volume_model`,
   STRUCT(14 AS horizon, 0.95 AS confidence_level)
 );
 ```
@@ -138,7 +138,7 @@ Extract the Auto-Regressive (AR) coefficients, Moving Average (MA) coefficients,
 ```sql
 SELECT * 
 FROM ML.ARIMA_COEFFICIENTS(
-  MODEL `gke-demos-363017.telemetry_anomaly_forecasts.incident_volume_model`
+  MODEL `YOUR_PROJECT_ID.telemetry_anomaly_forecasts.incident_volume_model`
 );
 ```
 
@@ -147,19 +147,19 @@ To streamline analysis, Terraform automatically deploys four pre-configured view
 
 *   **Live 14-Day Forecasts View:**
     ```sql
-    SELECT * FROM `gke-demos-363017.telemetry_anomaly_forecasts.incident_volume_forecast_view` LIMIT 100;
+    SELECT * FROM `YOUR_PROJECT_ID.telemetry_anomaly_forecasts.incident_volume_forecast_view` LIMIT 100;
     ```
 *   **Live Anomalies/Outliers View:**
     ```sql
-    SELECT * FROM `gke-demos-363017.telemetry_anomaly_forecasts.incident_volume_anomalies_view` LIMIT 100;
+    SELECT * FROM `YOUR_PROJECT_ID.telemetry_anomaly_forecasts.incident_volume_anomalies_view` LIMIT 100;
     ```
 *   **Model Evaluation Diagnostics View:**
     ```sql
-    SELECT * FROM `gke-demos-363017.telemetry_anomaly_forecasts.incident_volume_evaluation_view`;
+    SELECT * FROM `YOUR_PROJECT_ID.telemetry_anomaly_forecasts.incident_volume_evaluation_view`;
     ```
 *   **Model Coefficients View:**
     ```sql
-    SELECT * FROM `gke-demos-363017.telemetry_anomaly_forecasts.incident_volume_coefficients_view`;
+    SELECT * FROM `YOUR_PROJECT_ID.telemetry_anomaly_forecasts.incident_volume_coefficients_view`;
     ```
 
 ---
@@ -224,7 +224,7 @@ WITH metrics_5m AS (
     TIMESTAMP_TRUNC(timestamp, MINUTE, 5) AS timestamp_bucket,
     resource.labels.node_name AS node_id,
     AVG(point.value.double_value) AS avg_cpu_utilization
-  FROM `gke-demos-363017.monitoring_export.time_series`
+  FROM `YOUR_PROJECT_ID.monitoring_export.time_series`
   WHERE metric.type = 'kubernetes.io/container/cpu/limit_utilization'
     AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
   GROUP BY 1, 2
@@ -240,7 +240,7 @@ logs_5m AS (
       "unknown-node"
     ) AS node_id,
     COUNT(1) AS log_error_count
-  FROM `gke-demos-363017.global._Default._AllLogs`
+  FROM `YOUR_PROJECT_ID.global._Default._AllLogs`
   WHERE severity IN ('ERROR', 'CRITICAL', 'WARNING')
     AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
   GROUP BY 1, 2
@@ -295,7 +295,7 @@ join
 #### 2. Declarative Alerting in Terraform
 ```hcl
 resource "google_monitoring_alert_policy" "unified_correlation_alert" {
-  project      = "gke-demos-363017"
+  project      = "YOUR_PROJECT_ID"
   display_name = "Unified Telemetry: High CPU & Error Log Spike Correlation"
   combiner     = "AND"
 
@@ -353,14 +353,14 @@ graph LR
 #### 1. Graph Relational Modeling with BigQuery Graph
 We natively declare a graph property schema in BigQuery using SQL GQL (Graph Query Language). This allows us to map service dependencies as nodes and edges without managing complex Neo4j or GraphDB clusters:
 ```sql
-CREATE OR REPLACE PROPERTY GRAPH `gke-demos-363017.telemetry_anomaly_forecasts.topology_graph`
+CREATE OR REPLACE PROPERTY GRAPH `YOUR_PROJECT_ID.telemetry_anomaly_forecasts.topology_graph`
 NODE TABLES (
-  `gke-demos-363017.telemetry_anomaly_forecasts.graph_nodes`
+  `YOUR_PROJECT_ID.telemetry_anomaly_forecasts.graph_nodes`
     KEY (node_id)
     LABEL Node { node_name, service_type }
 )
 EDGE TABLES (
-  `gke-demos-363017.telemetry_anomaly_forecasts.graph_edges`
+  `YOUR_PROJECT_ID.telemetry_anomaly_forecasts.graph_edges`
     KEY (edge_id)
     SOURCE KEY (source_id) REFERENCES graph_nodes (node_id)
     DESTINATION KEY (destination_id) REFERENCES graph_nodes (node_id)
@@ -373,7 +373,7 @@ To extract multi-hop dependencies or simulate an impact blast radius, we query t
 -- Trace 1-to-3 hop upstream dependencies starting from a database outage
 SELECT source_node, dest_node, path
 FROM GRAPH_TABLE(
-  `gke-demos-363017.telemetry_anomaly_forecasts.topology_graph`
+  `YOUR_PROJECT_ID.telemetry_anomaly_forecasts.topology_graph`
   MATCH (src:Node {node_name: "Payment DB"})<-[e:DEPENDS_ON*1..3]-(dst:Node)
   COLUMNS(src.node_name AS source_node, dst.node_name AS dest_node, JSON_ARRAY(e.dependency_type) AS path)
 );

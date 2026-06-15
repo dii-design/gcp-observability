@@ -7,17 +7,17 @@ resource "google_monitoring_dashboard" "telemetry_forecasting_dashboard" {
     gridLayout = {
       columns = 2
       widgets = [
-        # Widget 1: CPU Utilization Timeseries
+        # Widget 1: CPU Utilization Timeseries (Native GKE Metric)
         {
-          title = "Prometheus Cluster CPU Utilization"
+          title = "GKE Node CPU Allocatable Utilization"
           xyChart = {
             dataSets = [{
               timeSeriesQuery = {
                 timeSeriesFilter = {
-                  filter   = "metric.type=\"prometheus.googleapis.com/node_cpu_seconds_total/counter\" AND resource.type=\"k8s_node\""
+                  filter   = "metric.type=\"kubernetes.io/node/cpu/allocatable_utilization\" AND resource.type=\"k8s_node\""
                   aggregation = {
                     alignmentPeriod    = "60s"
-                    perSeriesAligner   = "ALIGN_RATE"
+                    perSeriesAligner   = "ALIGN_MEAN"
                     crossSeriesReducer = "REDUCE_MEAN"
                     groupByFields      = ["resource.labels.node_name"]
                   }
@@ -28,18 +28,19 @@ resource "google_monitoring_dashboard" "telemetry_forecasting_dashboard" {
             timeshiftDuration = "0s"
           }
         },
-        # Widget 2: Memory Paging Storm Monitor
+        # Widget 2: Memory Allocatable Utilization (Native GKE Metric)
         {
-          title = "Prometheus Memory Paging Ingress (Swap / Thrashing)"
+          title = "GKE Node Memory Allocatable Utilization"
           xyChart = {
             dataSets = [{
               timeSeriesQuery = {
                 timeSeriesFilter = {
-                  filter   = "metric.type=\"prometheus.googleapis.com/node_vmstat_pgpgin/counter\""
+                  filter   = "metric.type=\"kubernetes.io/node/memory/allocatable_utilization\" AND resource.type=\"k8s_node\""
                   aggregation = {
-                    alignmentPeriod    = "120s"
-                    perSeriesAligner   = "ALIGN_RATE"
-                    crossSeriesReducer = "REDUCE_SUM"
+                    alignmentPeriod    = "60s"
+                    perSeriesAligner   = "ALIGN_MEAN"
+                    crossSeriesReducer = "REDUCE_MEAN"
+                    groupByFields      = ["resource.labels.node_name"]
                   }
                 }
               }
@@ -48,18 +49,19 @@ resource "google_monitoring_dashboard" "telemetry_forecasting_dashboard" {
             timeshiftDuration = "0s"
           }
         },
-        # Widget 3: Disk Free Space Capacity
+        # Widget 3: GCE Disk Write Bytes Tracking (Active Write Burst Metric)
         {
-          title = "Node Disk Capacity Tracking (Free Space)"
+          title = "GCE Instance Disk Write Bytes (Physical Ephemeral Writes)"
           xyChart = {
             dataSets = [{
               timeSeriesQuery = {
                 timeSeriesFilter = {
-                  filter   = "metric.type=\"prometheus.googleapis.com/node_filesystem_free_bytes/gauge\" AND resource.type=\"k8s_node\""
+                  filter   = "metric.type=\"compute.googleapis.com/instance/disk/write_bytes_count\" AND resource.type=\"gce_instance\""
                   aggregation = {
-                    alignmentPeriod    = "300s"
-                    perSeriesAligner   = "ALIGN_MEAN"
+                    alignmentPeriod    = "60s"
+                    perSeriesAligner   = "ALIGN_RATE"
                     crossSeriesReducer = "REDUCE_MEAN"
+                    groupByFields      = ["resource.labels.instance_id"]
                   }
                 }
               }

@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Inject initial logs
-  addLog('info', 'Monarch backend connected successfully in gke-demos-363017.');
+  addLog('info', 'Monarch backend connected successfully in YOUR_PROJECT_ID.');
   addLog('info', 'Google Managed Prometheus (GMP) scraping 10 target metrics streams.');
   addLog('info', 'Cloud Logging Log Analytics linked dataset default.global initialized.');
   addLog('info', 'BigQuery ML serverless ARIMA_PLUS models loaded with holiday calendars.');
@@ -317,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
       bqml: `-- BQML Anomaly Detection is not typically run on raw high-frequency CPU metrics.
 -- However, for aggregated metrics, you train ARIMA_PLUS on Prometheus CPU trends:
 
-CREATE OR REPLACE MODEL \`gke-demos-363017.prometheus_forecasts.cpu_model\`
+CREATE OR REPLACE MODEL \`YOUR_PROJECT_ID.prometheus_forecasts.cpu_model\`
 OPTIONS(
   model_type = 'ARIMA_PLUS',
   time_series_timestamp_col = 'timestamp',
@@ -329,7 +329,7 @@ SELECT
   timestamp,
   node_name,
   cpu_idle_avg
-FROM \`gke-demos-363017.prometheus_metrics.node_cpu_daily\`
+FROM \`YOUR_PROJECT_ID.prometheus_metrics.node_cpu_daily\`
 WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY);`,
       monitoring: `{
   "displayName": "Predictive Alert: CPU predicted exhaustion in 4 hours",
@@ -368,7 +368,7 @@ fetch k8s_node
     value_rate_sum > thresh
   }`,
       terraform: `resource "google_monitoring_alert_policy" "cpu_forecast_alert" {
-  project      = "gke-demos-363017"
+  project      = "YOUR_PROJECT_ID"
   display_name = "Predictive Alert: High CPU Load Expected"
   combiner     = "OR"
   conditions {
@@ -387,7 +387,7 @@ fetch k8s_node
     },
     paging: {
       bqml: `-- Train ARIMA_PLUS model to track paging-storm trends across pods
-CREATE OR REPLACE MODEL \`gke-demos-363017.prometheus_forecasts.paging_model\`
+CREATE OR REPLACE MODEL \`YOUR_PROJECT_ID.prometheus_forecasts.paging_model\`
 OPTIONS(
   model_type = 'ARIMA_PLUS',
   time_series_timestamp_col = 'timestamp',
@@ -396,7 +396,7 @@ OPTIONS(
   clean_spikes_and_dips = FALSE -- Keep paging storms to train anomaly tolerance
 ) AS
 SELECT timestamp, pod_name, paging_rate
-FROM \`gke-demos-363017.prometheus_metrics.pod_paging_hourly\`
+FROM \`YOUR_PROJECT_ID.prometheus_metrics.pod_paging_hourly\`
 WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY);`,
       monitoring: `{
   "displayName": "Prometheus Pod Memory Paging Outlier Detect",
@@ -423,7 +423,7 @@ fetch gce_instance
 | every 1m
 | map log10`,
       terraform: `resource "google_monitoring_alert_policy" "paging_storm" {
-  project      = "gke-demos-363017"
+  project      = "YOUR_PROJECT_ID"
   display_name = "Prometheus Paging Storm Alert"
   combiner     = "OR"
   conditions {
@@ -439,7 +439,7 @@ fetch gce_instance
     },
     swap: {
       bqml: `-- Detect Memory leaks in Swap utilization
-CREATE OR REPLACE MODEL \`gke-demos-363017.prometheus_forecasts.swap_model\`
+CREATE OR REPLACE MODEL \`YOUR_PROJECT_ID.prometheus_forecasts.swap_model\`
 OPTIONS(
   model_type = 'ARIMA_PLUS',
   time_series_timestamp_col = 'timestamp',
@@ -447,7 +447,7 @@ OPTIONS(
   time_series_id_col = 'host_id'
 ) AS
 SELECT timestamp, host_id, swap_used_mb
-FROM \`gke-demos-363017.prometheus_metrics.node_swap_hourly\`;`,
+FROM \`YOUR_PROJECT_ID.prometheus_metrics.node_swap_hourly\`;`,
       monitoring: `{
   "displayName": "Critical Swap Memory In-Use Forecast in 24h",
   "combiner": "OR",
@@ -480,7 +480,7 @@ fetch gfr_node
     expected_swap < 1000000000 -- Under 1GB free in 12h
   }`,
       terraform: `resource "google_monitoring_alert_policy" "swap_exhaustion" {
-  project      = "gke-demos-363017"
+  project      = "YOUR_PROJECT_ID"
   display_name = "Predictive Swap Exhaustion (24h)"
   combiner     = "OR"
   conditions {
@@ -499,7 +499,7 @@ fetch gfr_node
     },
     process_count: {
       bqml: `-- Anomaly detection for process drops (representing daemon deaths / process crashes)
-CREATE OR REPLACE MODEL \`gke-demos-363017.prometheus_forecasts.process_model\`
+CREATE OR REPLACE MODEL \`YOUR_PROJECT_ID.prometheus_forecasts.process_model\`
 OPTIONS(
   model_type = 'ARIMA_PLUS',
   time_series_timestamp_col = 'timestamp',
@@ -507,7 +507,7 @@ OPTIONS(
   clean_spikes_and_dips = FALSE
 ) AS
 SELECT timestamp, process_count
-FROM \`gke-demos-363017.prometheus_metrics.node_process_hourly\`;`,
+FROM \`YOUR_PROJECT_ID.prometheus_metrics.node_process_hourly\`;`,
       monitoring: `{
   "displayName": "Alert on sudden process count drops",
   "combiner": "OR",
@@ -541,7 +541,7 @@ fetch gce_instance
 | value [current: val(1), previous: val(0)]
 | filter current < previous * 0.70`,
       terraform: `resource "google_monitoring_alert_policy" "process_count_drop" {
-  project      = "gke-demos-363017"
+  project      = "YOUR_PROJECT_ID"
   display_name = "Sudden Daemon Process Crash Alert"
   combiner     = "OR"
   conditions {
@@ -557,14 +557,14 @@ fetch gce_instance
     },
     phys_mem: {
       bqml: `-- Train an ARIMA model on physical memory utilization to capture diurnal trends
-CREATE OR REPLACE MODEL \`gke-demos-363017.prometheus_forecasts.phys_mem_model\`
+CREATE OR REPLACE MODEL \`YOUR_PROJECT_ID.prometheus_forecasts.phys_mem_model\`
 OPTIONS(
   model_type = 'ARIMA_PLUS',
   time_series_timestamp_col = 'timestamp',
   time_series_data_col = 'mem_used_gb'
 ) AS
 SELECT timestamp, mem_used_gb
-FROM \`gke-demos-363017.prometheus_metrics.mem_util_hourly\`;`,
+FROM \`YOUR_PROJECT_ID.prometheus_metrics.mem_util_hourly\`;`,
       monitoring: `{
   "displayName": "Predictive Alert: Out of Memory (OOM) predicted in 6 hours",
   "combiner": "OR",
@@ -597,7 +597,7 @@ fetch gce_instance
     ram_active > 0.92 * 16000000000 -- alert if 92% of 16GB
   }`,
       terraform: `resource "google_monitoring_alert_policy" "phys_mem_forecast" {
-  project      = "gke-demos-363017"
+  project      = "YOUR_PROJECT_ID"
   display_name = "Predictive RAM OOM Alert (6h)"
   combiner     = "OR"
   conditions {
@@ -616,14 +616,14 @@ fetch gce_instance
     },
     threads: {
       bqml: `-- Train ARIMA_PLUS model to monitor thread counts and detect thread exhaustion
-CREATE OR REPLACE MODEL \`gke-demos-363017.prometheus_forecasts.thread_model\`
+CREATE OR REPLACE MODEL \`YOUR_PROJECT_ID.prometheus_forecasts.thread_model\`
 OPTIONS(
   model_type = 'ARIMA_PLUS',
   time_series_timestamp_col = 'timestamp',
   time_series_data_col = 'thread_count'
 ) AS
 SELECT timestamp, thread_count
-FROM \`gke-demos-363017.prometheus_metrics.node_threads_daily\`;`,
+FROM \`YOUR_PROJECT_ID.prometheus_metrics.node_threads_daily\`;`,
       monitoring: `{
   "displayName": "Predictive Alert: System Thread Pool Exhaustion in 12h",
   "combiner": "OR",
@@ -652,7 +652,7 @@ fetch gce_instance
 | every 5m
 | delta 1h`,
       terraform: `resource "google_monitoring_alert_policy" "thread_exhaustion" {
-  project      = "gke-demos-363017"
+  project      = "YOUR_PROJECT_ID"
   display_name = "Predictive Thread Exhaustion Alert"
   combiner     = "OR"
   conditions {
@@ -673,7 +673,7 @@ fetch gce_instance
       bqml: `-- MULTI-SERIES FORECASTING (Kibana ML equivalent) on ServiceNow logs.
 -- This trains ARIMA_PLUS on log ingestion volume grouped by country.
 
-CREATE OR REPLACE MODEL \`gke-demos-363017.servicenow_forecasts.country_incident_model\`
+CREATE OR REPLACE MODEL \`YOUR_PROJECT_ID.servicenow_forecasts.country_incident_model\`
 OPTIONS(
   model_type = 'ARIMA_PLUS',
   time_series_timestamp_col = 'timestamp',
@@ -687,7 +687,7 @@ SELECT
   TIMESTAMP(FORMAT_TIMESTAMP('%Y-%m-%d 00:00:00', timestamp)) as timestamp,
   jsonPayload.country,
   COUNT(1) as incident_count
-FROM \`gke-demos-363017.global._Default._AllLogs\`
+FROM \`YOUR_PROJECT_ID.global._Default._AllLogs\`
 WHERE logName LIKE '%servicenow%'
   AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)
 GROUP BY 1, 2;
@@ -695,25 +695,25 @@ GROUP BY 1, 2;
 -- Running historical anomaly detection
 SELECT *
 FROM ML.DETECT_ANOMALIES(
-  MODEL \`gke-demos-363017.servicenow_forecasts.country_incident_model\`,
+  MODEL \`YOUR_PROJECT_ID.servicenow_forecasts.country_incident_model\`,
   STRUCT(0.99 AS anomaly_prob_threshold)
 )
 ORDER BY timestamp DESC;
 
 -- Advanced Model Evaluation (inspect ARIMA order, seasonal components, AIC, BIC)
 SELECT *
-FROM ML.ARIMA_EVALUATE(MODEL \`gke-demos-363017.servicenow_forecasts.country_incident_model\`);
+FROM ML.ARIMA_EVALUATE(MODEL \`YOUR_PROJECT_ID.servicenow_forecasts.country_incident_model\`);
 
 -- Explain Forecast (decompose trend, seasonal, holiday, and step-changes)
 SELECT *
 FROM ML.EXPLAIN_FORECAST(
-  MODEL \`gke-demos-363017.servicenow_forecasts.country_incident_model\`,
+  MODEL \`YOUR_PROJECT_ID.servicenow_forecasts.country_incident_model\`,
   STRUCT(14 AS horizon, 0.95 AS confidence_level)
 );
 
 -- Retrieve coefficients (inspect AR, MA, drift, and intercept coefficients)
 SELECT *
-FROM ML.ARIMA_COEFFICIENTS(MODEL \`gke-demos-363017.servicenow_forecasts.country_incident_model\`);`,
+FROM ML.ARIMA_COEFFICIENTS(MODEL \`YOUR_PROJECT_ID.servicenow_forecasts.country_incident_model\`);`,
       monitoring: `-- Alerting on ServiceNow logs via Log-Based Metrics
 -- Once ServiceNow Log Analytics exports metric, alert if count > threshold in 15m
 {
@@ -745,7 +745,7 @@ fetch global
     total_incidents > (avg + 3 * dev)
   }`,
       terraform: `resource "google_monitoring_alert_policy" "servicenow_country_alert" {
-  project      = "gke-demos-363017"
+  project      = "YOUR_PROJECT_ID"
   display_name = "ServiceNow High Incident Country Spike"
   combiner     = "OR"
   conditions {
@@ -761,7 +761,7 @@ fetch global
     },
     servicenow_location: {
       bqml: `-- Train multi-series ARIMA model to track incident volume partitioned by site location
-CREATE OR REPLACE MODEL \`gke-demos-363017.servicenow_forecasts.site_incident_model\`
+CREATE OR REPLACE MODEL \`YOUR_PROJECT_ID.servicenow_forecasts.site_incident_model\`
 OPTIONS(
   model_type = 'ARIMA_PLUS',
   time_series_timestamp_col = 'timestamp',
@@ -774,32 +774,32 @@ SELECT
   TIMESTAMP(FORMAT_TIMESTAMP('%Y-%m-%d 00:00:00', timestamp)) as timestamp,
   jsonPayload.location as site_location,
   COUNT(1) as incident_count
-FROM \`gke-demos-363017.global._Default._AllLogs\`
+FROM \`YOUR_PROJECT_ID.global._Default._AllLogs\`
 WHERE logName LIKE '%servicenow%'
 GROUP BY 1, 2;
 
 -- Running historical anomaly detection
 SELECT *
 FROM ML.DETECT_ANOMALIES(
-  MODEL \`gke-demos-363017.servicenow_forecasts.site_incident_model\`,
+  MODEL \`YOUR_PROJECT_ID.servicenow_forecasts.site_incident_model\`,
   STRUCT(0.99 AS anomaly_prob_threshold)
 )
 ORDER BY timestamp DESC;
 
 -- Advanced Model Evaluation (inspect ARIMA order, seasonal components, AIC, BIC)
 SELECT *
-FROM ML.ARIMA_EVALUATE(MODEL \`gke-demos-363017.servicenow_forecasts.site_incident_model\`);
+FROM ML.ARIMA_EVALUATE(MODEL \`YOUR_PROJECT_ID.servicenow_forecasts.site_incident_model\`);
 
 -- Explain Forecast (decompose trend, seasonal, holiday, and step-changes)
 SELECT *
 FROM ML.EXPLAIN_FORECAST(
-  MODEL \`gke-demos-363017.servicenow_forecasts.site_incident_model\`,
+  MODEL \`YOUR_PROJECT_ID.servicenow_forecasts.site_incident_model\`,
   STRUCT(14 AS horizon, 0.95 AS confidence_level)
 );
 
 -- Retrieve coefficients (inspect AR, MA, drift, and intercept coefficients)
 SELECT *
-FROM ML.ARIMA_COEFFICIENTS(MODEL \`gke-demos-363017.servicenow_forecasts.site_incident_model\`);`,
+FROM ML.ARIMA_COEFFICIENTS(MODEL \`YOUR_PROJECT_ID.servicenow_forecasts.site_incident_model\`);`,
       monitoring: `{
   "displayName": "GCP Alert: ServiceNow Incident Volume Site Outlier",
   "combiner": "OR",
@@ -829,7 +829,7 @@ fetch global
     site_sum > (avg + 4 * dev) -- Strict 4-sigma check
   }`,
       terraform: `resource "google_monitoring_alert_policy" "servicenow_site_alert" {
-  project      = "gke-demos-363017"
+  project      = "YOUR_PROJECT_ID"
   display_name = "ServiceNow High Incident Site Outlier"
   combiner     = "OR"
   conditions {
@@ -845,7 +845,7 @@ fetch global
     },
     disk_trend: {
       bqml: `-- Capacity Trend Analysis using ARIMA_PLUS on Disk Usage
-CREATE OR REPLACE MODEL \`gke-demos-363017.capacity_models.disk_usage_model\`
+CREATE OR REPLACE MODEL \`YOUR_PROJECT_ID.capacity_models.disk_usage_model\`
 OPTIONS(
   model_type = 'ARIMA_PLUS',
   time_series_timestamp_col = 'timestamp',
@@ -854,7 +854,7 @@ OPTIONS(
   adjust_step_changes = TRUE
 ) AS
 SELECT timestamp, disk_used_percentage
-FROM \`gke-demos-363017.capacity_metrics.disk_daily_aggregation\`
+FROM \`YOUR_PROJECT_ID.capacity_metrics.disk_daily_aggregation\`
 WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 120 DAY);
 
 -- Run Forecast to predict exact day of disk exhaustion (crossing 95%)
@@ -864,7 +864,7 @@ SELECT
   prediction_interval_lower_bound,
   prediction_interval_upper_bound
 FROM ML.FORECAST(
-  MODEL \`gke-demos-363017.capacity_models.disk_usage_model\`,
+  MODEL \`YOUR_PROJECT_ID.capacity_models.disk_usage_model\`,
   STRUCT(60 AS horizon, 0.95 AS confidence_level)
 )
 WHERE forecast_value >= 95.0
@@ -903,7 +903,7 @@ fetch k8s_node
     forecast_free < 0 -- predicted full
   }`,
       terraform: `resource "google_monitoring_alert_policy" "disk_7day_forecast" {
-  project      = "gke-demos-363017"
+  project      = "YOUR_PROJECT_ID"
   display_name = "Predictive Alert: Disk Exhaustion in 7 days"
   combiner     = "OR"
   conditions {
@@ -922,7 +922,7 @@ fetch k8s_node
     },
     memory_trend: {
       bqml: `-- Forecast weekly/diurnal memory capacity patterns
-CREATE OR REPLACE MODEL \`gke-demos-363017.capacity_models.memory_model\`
+CREATE OR REPLACE MODEL \`YOUR_PROJECT_ID.capacity_models.memory_model\`
 OPTIONS(
   model_type = 'ARIMA_PLUS',
   time_series_timestamp_col = 'timestamp',
@@ -930,7 +930,7 @@ OPTIONS(
   holiday_region = 'GLOBAL'
 ) AS
 SELECT timestamp, memory_used_percentage
-FROM \`gke-demos-363017.capacity_metrics.memory_daily_aggregation\`;`,
+FROM \`YOUR_PROJECT_ID.capacity_metrics.memory_daily_aggregation\`;`,
       monitoring: `{
   "displayName": "Predictive Alert: Memory Exhaustion expected in 3 days",
   "combiner": "OR",
@@ -963,7 +963,7 @@ fetch k8s_node
     pred_mem > 32000000000 -- Exceed 32GB RAM
   }`,
       terraform: `resource "google_monitoring_alert_policy" "memory_3day_forecast" {
-  project      = "gke-demos-363017"
+  project      = "YOUR_PROJECT_ID"
   display_name = "Predictive Alert: RAM Exhaustion in 3 days"
   combiner     = "OR"
   conditions {
@@ -984,14 +984,14 @@ fetch k8s_node
       bqml: `-- 1. DECLARE PROPERTY GRAPH SCHEMA NATIVELY IN BIGQUERY
 -- Create node/edge views and define graph connectivity
 
-CREATE OR REPLACE PROPERTY GRAPH \`gke-demos-363017.telemetry_graph.topology_graph\`
+CREATE OR REPLACE PROPERTY GRAPH \`YOUR_PROJECT_ID.telemetry_graph.topology_graph\`
 NODE TABLES (
-  \`gke-demos-363017.telemetry_graph.graph_nodes\`
+  \`YOUR_PROJECT_ID.telemetry_graph.graph_nodes\`
     KEY (node_id)
     LABEL Node { node_name, service_type }
 )
 EDGE TABLES (
-  \`gke-demos-363017.telemetry_graph.graph_edges\`
+  \`YOUR_PROJECT_ID.telemetry_graph.graph_edges\`
     KEY (edge_id)
     SOURCE KEY (source_id) REFERENCES graph_nodes (node_id)
     DESTINATION KEY (destination_id) REFERENCES graph_nodes (node_id)
@@ -1001,7 +1001,7 @@ EDGE TABLES (
 -- 2. QUERY MULTI-HOP PATHS DOWNSTREAM FROM DATABASE TO TRACE DOWNSTREAM THREAT CASCADE
 SELECT source_node, dest_node
 FROM GRAPH_TABLE(
-  \`gke-demos-363017.telemetry_graph.topology_graph\`
+  \`YOUR_PROJECT_ID.telemetry_graph.topology_graph\`
   MATCH (src:Node {node_name: "payment-db"})-[e:DEPENDS_ON*1..3]->(dst:Node)
   COLUMNS(src.node_name AS source_node, dst.node_name AS dest_node)
 );`,
@@ -1040,7 +1040,7 @@ fetch k8s_container
 | filter db_cpu > 0.85 AND svc_cpu > 0.90`,
       terraform: `# Deploy Vertex AI Model Endpoint for Graph Neural Network
 resource "google_vertex_ai_endpoint" "gnn_endpoint" {
-  project      = "gke-demos-363017"
+  project      = "YOUR_PROJECT_ID"
   name         = "gnn-cascade-predictor"
   display_name = "GNN Anomaly Cascade Predictor Endpoint"
   location     = "us-central1"
@@ -1074,7 +1074,7 @@ WITH metrics_5m AS (
     TIMESTAMP_TRUNC(timestamp, MINUTE, 5) AS timestamp_bucket,
     resource.labels.node_name AS node_id,
     AVG(point.value.double_value) AS avg_cpu_utilization
-  FROM \`gke-demos-363017.monitoring_export.time_series\`
+  FROM \`YOUR_PROJECT_ID.monitoring_export.time_series\`
   WHERE metric.type = 'kubernetes.io/container/cpu/limit_utilization'
     AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
   GROUP BY 1, 2
@@ -1090,7 +1090,7 @@ logs_5m AS (
       "unknown-node"
     ) AS node_id,
     COUNT(1) AS log_error_count
-  FROM \`gke-demos-363017.global._Default._AllLogs\`
+  FROM \`YOUR_PROJECT_ID.global._Default._AllLogs\`
   WHERE severity IN ('ERROR', 'CRITICAL', 'WARNING')
     AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
   GROUP BY 1, 2
@@ -1157,7 +1157,7 @@ join
 | filter cpu_util > 0.85 AND err_count > 10`,
       terraform: `# Provision a dual-signal alert policy in Cloud Monitoring via Terraform
 resource "google_monitoring_alert_policy" "unified_correlation_alert" {
-  project      = "gke-demos-363017"
+  project      = "YOUR_PROJECT_ID"
   display_name = "Unified Telemetry: High CPU & Error Log Spike Correlation"
   combiner     = "AND"
 
@@ -2089,7 +2089,7 @@ resource "google_monitoring_alert_policy" "unified_correlation_alert" {
         break;
       case 'playbook':
         titleEl.textContent = 'GCP Implementation Playbook';
-        subtitleEl.textContent = 'Step-by-step technical architecture guide to deploy anomaly detection in gke-demos-363017.';
+        subtitleEl.textContent = 'Step-by-step technical architecture guide to deploy anomaly detection in YOUR_PROJECT_ID.';
         break;
       case 'migration':
         titleEl.textContent = 'ELK Stack to GCP Migration map';
@@ -2121,7 +2121,7 @@ resource "google_monitoring_alert_policy" "unified_correlation_alert" {
     { type: 'info', msg: 'Cloud Monitoring successfully evaluated PromQL rule "CPU_Exhaustion_forecast_4h". Status: healthy.' },
     { type: 'info', msg: 'BigQuery ML scheduled model retrain completed on table "servicenow_logs.incidents_daily".' },
     { type: 'warning', msg: 'GKE node node-pool-gcp-02 memory paging rates climbing. Trend shows 5.2% daily growth.' },
-    { type: 'info', msg: 'Monarch timeseries read request: project=gke-demos-363017, metric=node_filesystem_free_bytes, points=1440.' },
+    { type: 'info', msg: 'Monarch timeseries read request: project=YOUR_PROJECT_ID, metric=node_filesystem_free_bytes, points=1440.' },
     { type: 'info', msg: 'Cloud Logging Log Analytics query executed: SELECT COUNT(1) FROM default_dataset._AllLogs.' },
     { type: 'info', msg: 'Google Managed Prometheus scraped 25 k8s cluster endpoints in 124ms.' }
   ];

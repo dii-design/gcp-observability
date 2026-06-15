@@ -3,7 +3,7 @@ import sys
 import subprocess
 import urllib.request
 
-PROJECT_ID = "gke-demos-363017"
+PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "YOUR_PROJECT_ID")
 CLUSTER_NAME = "autopilot-cluster-2"
 REGION = "us-central1"
 KUBECTL_PATH = "./simulator/kubectl"
