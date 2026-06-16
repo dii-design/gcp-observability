@@ -180,7 +180,7 @@ def build_features_and_labels(client, project_id, dataset_id, metrics_dataset, l
             COALESCE(resource.labels.container_name, resource.labels.job) AS service,
             AVG(point.value.double_value) AS socket_exhaustion
           FROM `{project_id}.{metrics_dataset}.time_series`
-          WHERE metric.type LIKE '%sockets%' OR metric.type LIKE '%connections%'
+          WHERE (metric.type LIKE '%sockets%' OR metric.type LIKE '%connections%')
             AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)
           GROUP BY 1
         ),
@@ -197,7 +197,7 @@ def build_features_and_labels(client, project_id, dataset_id, metrics_dataset, l
         SELECT
           n.node_id,
           n.node_name,
-          COALESCE(cpu.cpu_val, 0.15) AS cpu_val,
+          COALESCE(cpu.avg_cpu, 0.15) AS cpu_val,
           COALESCE(t.throughput_val, 1.00) AS throughput_val,
           COALESCE(sock.socket_exhaustion, 0.20) AS socket_val,
           COALESCE(dbe.db_err_rate, 0.00) AS db_err_val

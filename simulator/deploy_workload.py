@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import urllib.request
+import platform
 
 PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "YOUR_PROJECT_ID")
 CLUSTER_NAME = "autopilot-cluster-2"
@@ -28,8 +29,17 @@ def check_or_download_kubectl():
         print("✓ Standalone kubectl binary already exists.")
         return
         
-    print("Downloading standalone macOS arm64 kubectl binary (v1.30.0)...")
-    url = "https://dl.k8s.io/release/v1.30.0/bin/darwin/arm64/kubectl"
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    if machine in ('x86_64', 'amd64'):
+        arch = 'amd64'
+    elif machine in ('arm64', 'aarch64'):
+        arch = 'arm64'
+    else:
+        arch = machine
+        
+    print(f"Downloading standalone {system} {arch} kubectl binary (v1.30.0)...")
+    url = f"https://dl.k8s.io/release/v1.30.0/bin/{system}/{arch}/kubectl"
     
     try:
         urllib.request.urlretrieve(url, KUBECTL_PATH)
@@ -44,13 +54,13 @@ def get_cluster_details():
     print("Querying cluster status and endpoint configurations...")
     
     # Check status first
-    status = run_cmd(f"CLOUDSDK_PYTHON=python3.11 gcloud container clusters describe {CLUSTER_NAME} --region={REGION} --project={PROJECT_ID} --format='value(status)'")
+    status = run_cmd(f"gcloud container clusters describe {CLUSTER_NAME} --region={REGION} --project={PROJECT_ID} --format='value(status)'")
     if status != "RUNNING":
         print(f"⚠ Cluster status is currently: {status}. Waiting for it to become RUNNING...")
         return None
         
-    endpoint = run_cmd(f"CLOUDSDK_PYTHON=python3.11 gcloud container clusters describe {CLUSTER_NAME} --region={REGION} --project={PROJECT_ID} --format='value(endpoint)'")
-    ca_cert = run_cmd(f"CLOUDSDK_PYTHON=python3.11 gcloud container clusters describe {CLUSTER_NAME} --region={REGION} --project={PROJECT_ID} --format='value(masterAuth.clusterCaCertificate)'")
+    endpoint = run_cmd(f"gcloud container clusters describe {CLUSTER_NAME} --region={REGION} --project={PROJECT_ID} --format='value(endpoint)'")
+    ca_cert = run_cmd(f"gcloud container clusters describe {CLUSTER_NAME} --region={REGION} --project={PROJECT_ID} --format='value(masterAuth.clusterCaCertificate)'")
     
     print(f"✓ Cluster endpoint found: {endpoint}")
     return {"endpoint": endpoint, "ca_cert": ca_cert}
@@ -60,7 +70,7 @@ def generate_kubeconfig(endpoint, ca_cert):
     print("Generating temporary kubeconfig file...")
     
     # Retrieve short-lived OAuth Access Token
-    token = run_cmd("CLOUDSDK_PYTHON=python3.11 gcloud auth print-access-token")
+    token = run_cmd("gcloud auth print-access-token")
     
     kubeconfig_yaml = f"""apiVersion: v1
 kind: Config

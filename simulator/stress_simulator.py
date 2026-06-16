@@ -53,10 +53,10 @@ def log_generator():
 # ---------------------------------------------------------
 # 2. CPU STRESSOR PROCESS / THREADS
 # ---------------------------------------------------------
-def cpu_worker():
+def cpu_worker(event):
     # Keep CPU busy when spiking
     while True:
-        if is_spiking:
+        if event.is_set():
             # Busy math computations
             x = 0.0001
             for i in range(100000):
@@ -64,12 +64,12 @@ def cpu_worker():
         else:
             time.sleep(0.1)
 
-def start_cpu_stress():
+def start_cpu_stress(event):
     cores = multiprocessing.cpu_count()
     print(f"Launching {cores} CPU stress workers...")
     for _ in range(cores):
-        t = threading.Thread(target=cpu_worker, daemon=True)
-        t.start()
+        p = multiprocessing.Process(target=cpu_worker, args=(event,), daemon=True)
+        p.start()
 
 # ---------------------------------------------------------
 # 3. MEMORY STRESSOR THREAD
@@ -139,8 +139,9 @@ def disk_stressor():
 # MAIN CONTROL LOOP: Periodically toggle is_spiking flag
 # ---------------------------------------------------------
 if __name__ == "__main__":
+    is_spiking_event = multiprocessing.Event()
     # Start worker threads
-    start_cpu_stress()
+    start_cpu_stress(is_spiking_event)
     
     t_log = threading.Thread(target=log_generator, daemon=True)
     t_log.start()
@@ -158,11 +159,13 @@ if __name__ == "__main__":
         while True:
             # Nominal State
             is_spiking = False
+            is_spiking_event.clear()
             print(f"STATE: NOMINAL (Next spike in {SPIKE_INTERVAL_SEC}s)")
             time.sleep(SPIKE_INTERVAL_SEC)
             
             # Spike/Stress State
             is_spiking = True
+            is_spiking_event.set()
             print(f"STATE: SPIKE_STRESS_ACTIVE (Duration: {SPIKE_DURATION_SEC}s)")
             time.sleep(SPIKE_DURATION_SEC)
             

@@ -24,7 +24,7 @@ for i in range(120):
     
     payload_str = json.dumps(log_payload)
     # Run gcloud logging write
-    cmd = f"CLOUDSDK_PYTHON=python3.11 gcloud logging write servicenow-sim-log '{payload_str}' --payload-type=json"
+    cmd = f"gcloud logging write servicenow-sim-log '{payload_str}' --payload-type=json"
     
     try:
         subprocess.run(cmd, shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
